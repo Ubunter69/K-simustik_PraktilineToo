@@ -1,0 +1,5 @@
+Mis värvi on lumi?:Valge
+Mis on Python?:programmeerimiskeel
+Mis on Eesti pealinn?:Tallinn
+Mis on list Pythonis?:järjend
+Mis on JavaScript?:Veebikeel

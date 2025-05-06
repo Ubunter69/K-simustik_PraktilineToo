@@ -2,120 +2,82 @@ import random
 import smtplib
 from email.message import EmailMessage
 
-# Чтение вопросов и ответов из файла
+# Loeme küsimused ja vastused failist
 def loe_kusimused():
     with open('kusimused_vastused.txt.txt', 'r') as file:
         return dict(line.strip().split(':') for line in file)
 
-# Проведение опроса
+# Küsitluse läbiviimine
 def kuula_kusimusi(kus_vas, kasutaja_nimi, num_kusimusi=5):
-    print(f"Привет, {kasutaja_nimi}! Начнем опрос.")
-    num_kusimusi = min(num_kusimusi, len(kus_vas))
-    valitud_kusimused = random.sample(list(kus_vas.keys()), num_kusimusi)
-    õiged_vastused = sum(input(f"{kysimus}: ").lower() == kus_vas[kysimus].lower() for kysimus in valitud_kusimused)
-    return õiged_vastused
+    print(f"Tere, {kasutaja_nimi}! Alustame küsimustiku.")
+    valitud_kusimused = random.sample(list(kus_vas.keys()), min(num_kusimusi, len(kus_vas)))
+    return sum(input(f"{kysimus}: ").lower() == kus_vas[kysimus].lower() for kysimus in valitud_kusimused)
 
-# Проверка, был ли пользователь уже опрошен
+# Kontrollimine, kas kasutajat on juba küsitletud
 vastajad = {}
 
 def salvesta_vastaja(nimi, õiged_vastused, email):
     vastajad[nimi] = {"õiged_vastused": õiged_vastused, "email": email}
 
-def kontrolli_vastajat(nimi):
-    return nimi in vastajad
-
-# Сохранение результатов в файлы
-def salvesta_failidesse():
-    with open('koik.txt.txt', 'w') as f_koik, open('oiged.txt.txt', 'w') as f_oiged, open('valed.txt.txt', 'w') as f_valed:
-        for nimi, info in sorted(vastajad.items(), key=lambda x: x[1]['õiged_vastused'], reverse=True):
-            email = info['email']
-            õiged_vastused = info['õiged_vastused']
-            f_koik.write(f"{nimi}, {õiged_vastused}, {email}\n")
-            if õiged_vastused > 2:  # больше половины правильных ответов
-                f_oiged.write(f"{nimi} – {õiged_vastused} õigesti\n")
-            else:
-                f_valed.write(f"{nimi} – {õiged_vastused} õigesti\n")
-
-# Отправка писем пользователю
-def saada_email(kasutaja_email, kasutaja_nimi, õiged_vastused, is_vastaja=False):
-    status = "Поздравляем, вы успешно прошли тест!" if õiged_vastused > 2 else "К сожалению, тест не был пройден."
+# Emaili saatmine
+def saada_email(kasutaja_email, kasutaja_nimi, õiged_vastused):
+    status = "Palju õnne, olete testi edukalt läbinud!" if õiged_vastused > 2 else "Kahjuks testi ei läbitud."
     msg = EmailMessage()
-    msg.set_content(f"Привет {kasutaja_nimi}!\n\nКоличество правильных ответов: {õiged_vastused}\n{status}")
-    msg['Subject'] = 'Результаты опроса'
+    msg.content(f"Tere {kasutaja_nimi}!\nÕigete vastuste arv: {õiged_vastused}\n{status}")
+    msg['Subject'] = 'Küsimustiku tulemused'
     msg['From'] = 'mareklukk8@gmail.com'
     msg['To'] = kasutaja_email
 
     with smtplib.SMTP('smtp.gmail.com', 587) as server:
         server.ehlo()
         server.starttls()
-        server.ehlo()
-        server.login("mareklukk8@gmail.com", "ejya cszz bjea urti")  # App Password
+        server.login("mareklukk8@gmail.com", "ejya cszz bjea urti") 
         server.send_message(msg)
 
-# Отправка отчета работодателю
-def saada_koondreport(kasutajate_andmed):
-    report = "Сегодняшние результаты опроса:\n"
-    for nimi, info in kasutajate_andmed:
-        result = "ПОДХОДИТ" if info['õiged_vastused'] > 2 else "НЕ ПОДХОДИТ"
-        report += f"{nimi} – {info['õiged_vastused']} правильных ответов – {info['email']} – {result}\n"
-    best = max(kasutajate_andmed, key=lambda x: x[1]['õiged_vastused'])
-    report += f"\nЛучший участник: {best[0]} ({best[1]['õiged_vastused']} правильных ответов)"
+# Tulemuste salvestamine failidesse
+def salvesta_failidesse():
+    def korrektne_vastus(x):
+        return x[1]['õiged_vastused']
+    
+    with open('koik.txt.txt', 'w') as f_koik, open('oiged.txt.txt', 'w') as f_oiged, open('valed.txt.txt', 'w') as f_valed:
+        for nimi, info in sorted(vastajad.items(), key=korrektne_vastus, reverse=True):
+            email = info['email']
+            õiged_vastused = info['õiged_vastused']
+            f_koik.write(f"{nimi}, {õiged_vastused}, {email}\n")
+            target = f_oiged if õiged_vastused > 2 else f_valed
+            target.write(f"{nimi} – {õiged_vastused} õigesti\n")
 
-    msg = EmailMessage()
-    msg.set_content(report)
-    msg['Subject'] = 'Отчет по результатам опроса'
-    msg['From'] = 'mareklukk8@gmail.com'
-    msg['To'] = 'mareklukk8@gmail.com'
-
-    with smtplib.SMTP('smtp.gmail.com', 587) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login("mareklukk8@gmail.com", "ejya cszz bjea urti")
-        server.send_message(msg)
-
-# Добавление нового вопроса
-def lisa_kysimus():
-    kysimus = input("Введите новый вопрос: ")
-    vastus = input("Введите правильный ответ: ")
-    with open('kusimused_vastused.txt.txt', 'a') as file:
-        file.write(f"{kysimus}:{vastus}\n")
-
-# Вывод результатов на экран
-def kuvatakse_tulemused():
-    print("Успешные участники:")
-    for nimi, info in sorted(vastajad.items(), key=lambda x: x[1]['õiged_vastused'], reverse=True):
-        print(f"{nimi} – {info['õiged_vastused']} правильных ответов")
-    print("\nРезультаты отправлены на электронные адреса.")
-
-# Главное меню программы
+# Main Menu
 def main():
     kus_vas = loe_kusimused()
 
     while True:
-        print("\nМеню:")
-        print("1. Начать опрос")
-        print("2. Добавить новый вопрос")
-        print("3. Выйти")
-        valik = input("Выберите опцию: ")
+        print("\nMenu:")
+        print("1. Alusta küsitlus")
+        print("2. Lisa uus küsimus")
+        print("3. Välja")
+        valik = input("Valge valik: ")
 
         if valik == "1":
-            kasutaja_nimi = input("Введите ваше имя: ")
-            if kontrolli_vastajat(kasutaja_nimi):
-                print(f"{kasutaja_nimi} уже прошел опрос.")
+            kasutaja_nimi = input("Sisestage oma nimi: ")
+            if kasutaja_nimi in vastajad:
+                print(f"{kasutaja_nimi} juba läbinud küsitluse.")
             else:
                 õiged_vastused = kuula_kusimusi(kus_vas, kasutaja_nimi)
-                kasutaja_email = input("Введите ваш email для получения результатов: ")
+                kasutaja_email = input("Sisestage oma emaili, et tulemused vaadata: ")
                 salvesta_vastaja(kasutaja_nimi, õiged_vastused, kasutaja_email)
                 saada_email(kasutaja_email, kasutaja_nimi, õiged_vastused)
         elif valik == "2":
-            lisa_kysimus()
+            kysimus = input("Lisa uus küsimus: ")
+            vastus = input("Lisa õige vastus: ")
+            with open('kusimused_vastused.txt.txt', 'a') as file:
+                file.write(f"{kysimus}:{vastus}\n")
         elif valik == "3":
             salvesta_failidesse()
-            kuvatakse_tulemused()
+            print("Küsitluse tulemused on säilinud.")
             break
         else:
-            print("Неверный выбор. Попробуйте снова.")
+            print("Vale valik. Proovi uuesti.")
 
 if __name__ == "__main__":
     main()
